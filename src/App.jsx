@@ -20,7 +20,13 @@ const App = () => {
     },
   ];
   
-  const [searchTerm, setSearchTerm] = React.useState('React');
+  const [searchTerm, setSearchTerm] = React.useState(
+    localStorage.getItem('search') ?? 'React'
+  );
+
+  React.useEffect(() => {
+    localStorage.setItem('search', searchTerm);
+  }, [searchTerm]);
 
   const handleSearch = (event) => {
     setSearchTerm(event.target.value);
@@ -33,11 +39,8 @@ const App = () => {
   return (
     <div>
       <h1>My Hacker Stories</h1>
-
       <Search search={searchTerm} onSearch={handleSearch} />
-
       <hr />
-
       <List list={searchedStories} />
     </div>
   );
@@ -60,7 +63,7 @@ const Search = ({search, onSearch}) => {
 
 const List = ({list}) => (
   <ul>
-    {list.map(({item}) => (
+    {list.map((item) => (
       <Item key={item.objectID} item={item} />
     ))}
   </ul>
