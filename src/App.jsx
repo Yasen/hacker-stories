@@ -1,17 +1,5 @@
 import * as React from 'react';
 
-const useStorageState = (key, initialState) => {
-  const [value, setValue] = React.useState(
-    localStorage.getItem(key) || initialState
-  );
-
-  React.useEffect(() => {
-    localStorage.setItem(key, value);
-  }, [value, key]);
-
-  return [value, setValue];
-};
-
 const initialStories = [
   {
     title: 'React',
@@ -32,7 +20,7 @@ const initialStories = [
 ];
 
 const getAsyncStories = () =>
-  new Promise((resolve) => 
+  new Promise((resolve) =>
     setTimeout(
       () => resolve({ data: { stories: initialStories } }),
       2000
@@ -41,19 +29,50 @@ const getAsyncStories = () =>
 
 const storiesReducer = (state, action) => {
   switch (action.type) {
-    case 'SET_STORIES':
-      return action.payload;
+    case 'STORIES_FETCH_INIT':
+      return {
+        ...state,
+        isLoading: true,
+        isError: false,
+      };
+    case 'STORIES_FETCH_SUCCESS':
+      return {
+        ...state,
+        isLoading: false,
+        isError: false,
+        data: action.payload,
+      };
+    case 'STORIES_FETCH_FAILURE':
+      return {
+        ...state,
+        isLoading: false,
+        isError: true,
+      };
     case 'REMOVE_STORY':
-      return state.filter(
-        (story) => action.payload.objectID !== story.objectID
-      );
+      return {
+        ...state,
+        data: state.data.filter(
+          (story) => action.payload.objectID !== story.objectID
+        ),
+      };
     default:
       throw new Error();
   }
 };
 
+const useStorageState = (key, initialState) => {
+  const [value, setValue] = React.useState(
+    localStorage.getItem(key) || initialState
+  );
+
+  React.useEffect(() => {
+    localStorage.setItem(key, value);
+  }, [value, key]);
+
+  return [value, setValue];
+};
+
 const App = () => {
-  
   const [searchTerm, setSearchTerm] = useStorageState(
     'search',
     'React'
@@ -61,33 +80,28 @@ const App = () => {
 
   const [stories, dispatchStories] = React.useReducer(
     storiesReducer,
-    []
+    { data: [], isLoading: false, isError: false }
   );
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [isError, setIsError] = React.useState(false);
 
   React.useEffect(() => {
-    setIsLoading(true);
+    dispatchStories({ type: 'STORIES_FETCH_INIT' });
 
-    getAsyncStories().
-      then(result => {
+    getAsyncStories()
+      .then((result) => {
         dispatchStories({
-          type: 'SET_STORIES',
+          type: 'STORIES_FETCH_SUCCESS',
           payload: result.data.stories,
         });
-      setIsLoading(false);
-    })
-    .catch(() => setIsError(true));
+      })
+      .catch(() =>
+        dispatchStories({ type: 'STORIES_FETCH_FAILURE' })
+      );
   }, []);
 
   const handleRemoveStory = (item) => {
-    const newStories = stories.filter(
-      (story) => item.objectID !== story.objectID
-    );
-
     dispatchStories({
-      type: 'SET_STORIES',
-      payload: newStories,
+      type: 'REMOVE_STORY',
+      payload: item,
     });
   };
 
@@ -95,13 +109,14 @@ const App = () => {
     setSearchTerm(event.target.value);
   };
 
-  const searchedStories = stories.filter((story) =>
+  const searchedStories = stories.data.filter((story) =>
     story.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div>
       <h1>My Hacker Stories</h1>
+
       <InputWithLabel
         id="search"
         value={searchTerm}
@@ -110,37 +125,35 @@ const App = () => {
       >
         <strong>Search:</strong>
       </InputWithLabel>
+
       <hr />
 
-      {isError && <p>Something went wrong ...</p>}
+      {stories.isError && <p>Something went wrong ...</p>}
 
-      {isLoading ? (
+      {stories.isLoading ? (
         <p>Loading ...</p>
       ) : (
-        <List 
-          list={searchedStories} 
-          onRemoveItem={handleRemoveStory} 
+        <List
+          list={searchedStories}
+          onRemoveItem={handleRemoveStory}
         />
       )}
     </div>
   );
 };
 
-const InputWithLabel = ({ 
-  id, 
-  value, 
+const InputWithLabel = ({
+  id,
+  value,
   type = 'text',
   onInputChange,
   isFocused,
   children,
 }) => {
-  // A
   const inputRef = React.useRef();
 
-  // C
   React.useEffect(() => {
     if (isFocused && inputRef.current) {
-      // D
       inputRef.current.focus();
     }
   }, [isFocused]);
@@ -149,7 +162,6 @@ const InputWithLabel = ({
     <>
       <label htmlFor={id}>{children}</label>
       &nbsp;
-      {/* B */}
       <input
         ref={inputRef}
         id={id}
@@ -158,41 +170,35 @@ const InputWithLabel = ({
         onChange={onInputChange}
       />
     </>
-  )
+  );
 };
 
 const List = ({ list, onRemoveItem }) => (
   <ul>
     {list.map((item) => (
-      <Item 
-        key={item.objectID} 
-        item={item} 
+      <Item
+        key={item.objectID}
+        item={item}
         onRemoveItem={onRemoveItem}
       />
     ))}
   </ul>
 );
 
-const Item = ({ item, onRemoveItem }) => {
-  const handleRemoveItem = () => {
-    onRemoveItem(item);
-  };
-
-  return (
-    <li>
-      <span>
-        <a href={item.url}>{item.title}</a>
-      </span>
-      <span>{item.author}</span>
-      <span>{item.num_comments}</span>
-      <span>{item.points}</span>
-      <span>
-        <button type="button" onClick={() => onRemoveItem(item)}>
-          Dismiss
-        </button>
-      </span>
-    </li>
-  );
-};
+const Item = ({ item, onRemoveItem }) => (
+  <li>
+    <span>
+      <a href={item.url}>{item.title}</a>
+    </span>
+    <span>{item.author}</span>
+    <span>{item.num_comments}</span>
+    <span>{item.points}</span>
+    <span>
+      <button type="button" onClick={() => onRemoveItem(item)}>
+        Dismiss
+      </button>
+    </span>
+  </li>
+);
 
 export default App;
